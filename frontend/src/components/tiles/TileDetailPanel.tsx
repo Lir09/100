@@ -8,7 +8,7 @@ export default function TileDetailPanel({ tileId }: { tileId: string | null }) {
   if (!tileId) {
     return (
       <p className="text-sm text-slate-400">
-        상세 정보를 보고 싶은 타일을 선택하세요.
+        왼쪽 배치도에서 타일을 선택하면 센서 상세 정보를 볼 수 있습니다.
       </p>
     );
   }
@@ -18,16 +18,16 @@ export default function TileDetailPanel({ tileId }: { tileId: string | null }) {
   if (!tile) {
     return (
       <p className="text-sm text-slate-400">
-        아직 {tileId} 타일 데이터가 수신되지 않았습니다.
+        타일 {tileId} 데이터가 아직 들어오지 않았습니다.
       </p>
     );
   }
 
   const statusLabel =
     tile.alarmStatus === "alarm"
-      ? "경보"
+      ? "알람"
       : tile.alarmStatus === "warn"
-      ? "경고"
+      ? "주의"
       : tile.alarmStatus === "fault"
       ? "장애"
       : "정상";
@@ -47,9 +47,11 @@ export default function TileDetailPanel({ tileId }: { tileId: string | null }) {
         <div className="font-mono text-lg">{tile.riskScore.toFixed(2)}</div>
       </div>
       <div>
-        <div className="text-xs text-slate-400">최근 업데이트</div>
+        <div className="text-xs text-slate-400">최신 업데이트</div>
         <div className="font-mono">
-          {new Date(tile.updatedAt).toLocaleTimeString("ko-KR")}
+          {new Date(tile.updatedAt).toLocaleTimeString("ko-KR", {
+            timeZone: "Asia/Seoul",
+          })}
         </div>
       </div>
       <div>
@@ -61,7 +63,7 @@ export default function TileDetailPanel({ tileId }: { tileId: string | null }) {
         <div className="font-mono">{tile.smoke.toFixed(2)}</div>
       </div>
       <div>
-        <div className="text-xs text-slate-400">조도 (정규화)</div>
+        <div className="text-xs text-slate-400">조도 (0~1)</div>
         <div className="font-mono">{tile.illuminance.toFixed(2)}</div>
       </div>
     </div>

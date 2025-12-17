@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import { useRealtime } from "../providers/RealtimeProvider";
 
 type HistoryPoint = {
@@ -11,7 +12,7 @@ type HistoryPoint = {
   riskScore: number;
 };
 
-const WINDOW_MS = 5 * 60 * 1000; // 최근 5분
+const WINDOW_MS = 5 * 60 * 1000; // 최근 5분만 시각화
 
 export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
   const { tiles } = useRealtime();
@@ -19,12 +20,12 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
 
   const [history, setHistory] = useState<HistoryPoint[]>([]);
 
-  // 타일이 바뀔 때마다 히스토리 리셋
+  // 타일이 바뀌면 기존 이력을 초기화
   useEffect(() => {
     setHistory([]);
   }, [tileId]);
 
-  // 선택된 타일의 최신 값이 업데이트될 때마다 히스토리에 누적
+  // 선택된 타일의 최신 값을 히스토리에 누적
   useEffect(() => {
     if (!tileId || !tile) return;
 
@@ -34,11 +35,7 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
 
       const filtered = prev.filter((p) => p.t >= cutoff);
 
-      // 같은 timestamp면 중복 추가 방지
-      if (
-        filtered.length &&
-        filtered[filtered.length - 1].t === tile.updatedAt
-      ) {
+      if (filtered.length && filtered[filtered.length - 1].t === tile.updatedAt) {
         return filtered;
       }
 
@@ -77,8 +74,7 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
       (1 - Math.min(Math.max(norm, 0), 1)) *
         (height - marginTop - marginBottom);
 
-    // 정규화 함수들 (대충 범위 가정)
-    const normTemp = (temp: number) => (temp - 20) / 70; // 20~90°C를 0~1로
+    const normTemp = (temp: number) => (temp - 20) / 70; // 20~90°C -> 0~1
     const normSmoke = (s: number) => s; // 0~1
     const normIll = (v: number) => v; // 0~1
     const normRisk = (r: number) => r; // 0~1
@@ -118,7 +114,7 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
   if (!tileId) {
     return (
       <p className="text-sm text-slate-400">
-        그래프를 보고 싶은 타일을 선택하세요.
+        그래프를 보려면 타일을 먼저 선택하세요.
       </p>
     );
   }
@@ -126,7 +122,7 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
   if (!tile) {
     return (
       <p className="text-sm text-slate-400">
-        아직 {tileId} 타일 데이터가 수신되지 않았습니다.
+        선택한 타일 데이터가 아직 준비되지 않았습니다.
       </p>
     );
   }
@@ -134,7 +130,7 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
   if (!svgData || history.length < 2) {
     return (
       <p className="text-sm text-slate-400">
-        최근 5분 데이터를 수집하는 중입니다...
+        최근 5분 데이터 수집 중입니다...
       </p>
     );
   }
@@ -157,7 +153,6 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
         viewBox={`0 0 ${width} ${height}`}
         className="w-full rounded-lg bg-slate-950/60"
       >
-        {/* x축 (시간축) */}
         <line
           x1={marginLeft}
           y1={height - marginBottom}
@@ -167,7 +162,6 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
           strokeWidth={0.5}
         />
 
-        {/* 위험도 기준선 (0.3, 0.7) */}
         <line
           x1={marginLeft}
           x2={width - 4}
@@ -187,7 +181,6 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
           strokeWidth={0.5}
         />
 
-        {/* 경보 구간 세로선 (위험도 ≥ 0.8) */}
         {alarmLines.map((x, idx) => (
           <line
             key={idx}
@@ -200,16 +193,12 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
           />
         ))}
 
-        {/* 위험도 */}
         <path d={riskPath} fill="none" stroke="#e5e7eb" strokeWidth={1.4} />
 
-        {/* 온도 */}
         <path d={tempPath} fill="none" stroke="#f97316" strokeWidth={1.1} />
 
-        {/* 연기 */}
         <path d={smokePath} fill="none" stroke="#a855f7" strokeWidth={1.1} />
 
-        {/* 조도 */}
         <path
           d={illPath}
           fill="none"
@@ -219,14 +208,13 @@ export default function TimeSeriesChart({ tileId }: { tileId: string | null }) {
         />
       </svg>
 
-      {/* 범례 */}
       <div className="flex flex-wrap gap-3 text-[11px] text-slate-300">
-        <LegendDot color="#e5e7eb" label="위험도 (EMA)" />
+        <LegendDot color="#e5e7eb" label="위험도(EMA)" />
         <LegendDot color="#f97316" label="온도" />
         <LegendDot color="#a855f7" label="연기" />
-        <LegendDot color="#eab308" label="조도(상대 변화)" />
+        <LegendDot color="#eab308" label="조도(상대)" />
         <span className="text-slate-500">
-          붉은 세로선: 위험도 ≥ 0.8 구간 (경보 레벨)
+          붉은 세로선 = 위험도 0.8 이상 구간
         </span>
       </div>
     </div>

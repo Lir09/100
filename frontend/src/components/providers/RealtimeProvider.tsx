@@ -2,30 +2,13 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
-type TileState = {
-  tileId: string;
-  riskScore: number; // 0~1
-  alarmStatus: "none" | "warn" | "alarm" | "fault";
-  temperature: number;
-  smoke: number;
-  illuminance: number;
-  updatedAt: number; // timestamp(ms)
-};
-
-type EventLogItem = {
-  id: string;
-  timestamp: number;
-  tileId: string;
-  state: "warn" | "alarm" | "fault";
-  riskScore: number;
-  reasonText: string;
-  contributions?: {
-    temperature: number;
-    tempSlope: number;
-    smoke: number;
-    luminanceDelta: number;
-  };
-};
+import {
+  defaultSelectedTileId,
+  initialTiles,
+  mockEvents,
+  tileUpdateQueue,
+} from "@/data/mockData";
+import { EventLogItem, TileState } from "@/types/realtime";
 
 type RealtimeContextValue = {
   tiles: Record<string, TileState>;
@@ -36,64 +19,64 @@ type RealtimeContextValue = {
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
 
+const TILE_UPDATE_MS = 2500;
+const EVENT_PUSH_MS = 4500;
+const INITIAL_EVENT_COUNT = 3;
+
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
-  const [tiles, setTiles] = useState<Record<string, TileState>>({});
-  const [events, setEvents] = useState<EventLogItem[]>([]);
-  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [tiles, setTiles] = useState<Record<string, TileState>>(() => {
+    const stamped: Record<string, TileState> = {};
+    const baseUpdatedAt = initialTiles[0]?.updatedAt ?? 0;
+    initialTiles.forEach((tile, idx) => {
+      stamped[tile.tileId] = {
+        ...tile,
+        updatedAt: baseUpdatedAt + idx * 500,
+      };
+    });
+    return stamped;
+  });
+
+  const [events, setEvents] = useState<EventLogItem[]>(() => {
+    const initial = mockEvents.slice(0, INITIAL_EVENT_COUNT);
+    return initial.reverse();
+  });
+
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(
+    defaultSelectedTileId ?? initialTiles[0]?.tileId ?? null
+  );
+
+  const tileCursorRef = useRef(0);
+  const eventCursorRef = useRef(
+    Math.min(INITIAL_EVENT_COUNT, mockEvents.length)
+  );
 
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_WS_URL;
-    if (!url) {
-      console.warn("NEXT_PUBLIC_WS_URL 미설정");
-      return;
-    }
+    const applyNextTileFrame = () => {
+      const nextFrame =
+        tileUpdateQueue[tileCursorRef.current % tileUpdateQueue.length];
+      tileCursorRef.current += 1;
 
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("[WS] connected");
-      // 필요하면 구독 메세지 전송
-      // ws.send(JSON.stringify({ type: "subscribe", channel: "tiles" }));
+      setTiles((prev) => ({
+        ...prev,
+        [nextFrame.tileId]: { ...nextFrame, updatedAt: Date.now() },
+      }));
     };
 
-    ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
+    const tileTimer = window.setInterval(applyNextTileFrame, TILE_UPDATE_MS);
+    applyNextTileFrame();
 
-        switch (msg.type) {
-          case "tile_state": {
-            const t: TileState = msg.payload;
-            setTiles((prev) => ({
-              ...prev,
-              [t.tileId]: t,
-            }));
-            break;
-          }
-          case "event": {
-            const e: EventLogItem = msg.payload;
-            setEvents((prev) => {
-              const next = [e, ...prev];
-              // 최근 200개만 유지 같은 정책
-              return next.slice(0, 200);
-            });
-            break;
-          }
-          default:
-            break;
-        }
-      } catch (e) {
-        console.error("WS message parse error", e);
-      }
+    const pushNextEvent = () => {
+      const next = mockEvents[eventCursorRef.current];
+      if (!next) return;
+      eventCursorRef.current += 1;
+      setEvents((prev) => [next, ...prev].slice(0, 200));
     };
 
-    ws.onclose = () => {
-      console.log("[WS] closed");
-    };
+    const eventTimer = window.setInterval(pushNextEvent, EVENT_PUSH_MS);
 
     return () => {
-      ws.close();
+      window.clearInterval(tileTimer);
+      window.clearInterval(eventTimer);
     };
   }, []);
 

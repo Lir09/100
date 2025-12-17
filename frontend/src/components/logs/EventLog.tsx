@@ -8,7 +8,7 @@ export default function EventLog() {
   if (!events.length) {
     return (
       <p className="text-sm text-slate-400">
-        아직 경고/경보/장애 이벤트가 기록되지 않았습니다.
+        아직 발생한 이벤트가 없습니다. 곧 모의 데이터가 들어옵니다.
       </p>
     );
   }
@@ -25,7 +25,9 @@ export default function EventLog() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-slate-400">
-                  {new Date(e.timestamp).toLocaleTimeString("ko-KR")}
+                  {new Date(e.timestamp).toLocaleTimeString("ko-KR", {
+                    timeZone: "Asia/Seoul",
+                  })}
                 </span>
                 <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px]">
                   {e.tileId}
@@ -41,9 +43,9 @@ export default function EventLog() {
                   }
                 >
                   {e.state === "alarm"
-                    ? "경보"
+                    ? "알람"
                     : e.state === "warn"
-                    ? "경고"
+                    ? "주의"
                     : "장애"}
                 </span>
               </div>
